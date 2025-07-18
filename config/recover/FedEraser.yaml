@@ -1,0 +1,9 @@
+Recover:
+  name: FedEraser
+  args:
+    rounds: 5
+    round_interval: 2
+    local_epochs: 1
+    select_round_ratio: 0.6
+    select_client_ratio: 0.7
+    alpha: 0.1

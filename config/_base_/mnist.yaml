@@ -1,0 +1,9 @@
+Dataset:
+  name: mnist
+  args:
+    data_dir: ./data/mnist
+
+Model:
+  name: CNNMnist
+  args:
+    num_classes: 10

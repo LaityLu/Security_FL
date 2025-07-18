@@ -1,0 +1,4 @@
+Defense:
+  name: Krum
+  args:
+    num_selected_clients: 1

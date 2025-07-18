@@ -1,0 +1,9 @@
+Dataset:
+  name: fmnist
+  args:
+    data_dir: ./data/fmnist
+
+Model:
+  name: CNNFashion_Mnist
+  args:
+    num_classes: 10

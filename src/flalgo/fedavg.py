@@ -1,0 +1,212 @@
+import copy
+from typing import List, Tuple, Dict
+
+import numpy as np
+import torch
+from torch.utils.data import Dataset
+
+from opacus import PrivacyEngine
+from opacus.accountants.utils import GENERATE_EPSILONS_FUNC
+import src.client as attacker
+from src import defense, recover
+
+from src.client import Client
+from src.utils import setup_logger
+from src.aggregator import average_weights
+from src.utils.helper import evaluate_model, evaluate_dba, evaluate_semantic_attack, set_random_seed
+
+logger = setup_logger()
+
+
+class FedAvg:
+    """Federated Averaging Strategy class."""
+
+    def __init__(
+            self,
+            global_model: torch.nn.Module,
+            selector,
+            train_dataset: Dataset,
+            test_dataset: Dataset,
+            client_data_dict: Dict[int, Tuple[List[int], int]],
+            config: dict,
+            **kwargs
+    ):
+        # set random seed
+        set_random_seed(config['seed'])
+
+        self.global_model = global_model
+        self.selector = selector
+        self.train_dataset = train_dataset
+        self.test_dataset = test_dataset
+        self.client_data_dict = client_data_dict
+        self.config = config
+
+        # with DP
+        self.privacy_engine = None
+        if config['FL']['with_DP']:
+            self.privacy_engine = PrivacyEngine(accountant="fed_rdp", n_clients=config['FL']['num_clients'])
+
+        self.config = config
+        self.clients_pool: List[Client] = []
+        self.adversary_list = []
+        self.initial_clients()
+
+        # for recover
+        self.old_global_models = []
+        self.old_client_models = []
+        self.select_info = []
+        self.malicious_clients = self.adversary_list
+        self.train_losses = []
+        self.time_cost = 0
+
+    def initial_clients(self):
+        # with DP
+        if self.privacy_engine is not None:
+            # get the privacy budget of all client's data
+            total_budgets = self.generate_budgets()
+
+            # initial the privacy accountants
+            self.privacy_engine.prepare_fed_rdp(
+                total_budgets=total_budgets,
+                sample_rate=self.config['Fed_rdp']['sample_rate'],
+                eta=self.config['Fed_rdp']['eta'],
+                delta_g=self.config['Fed_rdp']['delta_g'],
+            )
+
+        if self.config['FL']['with_attack']:
+            self.adversary_list = self.config['Attack']['adversary_list']
+
+        # create the clients pool
+        for i, (list_dps, num_dps) in self.client_data_dict.items():
+            if i in self.adversary_list:
+                client = getattr(attacker, self.config['Attack']['name'])(i, copy.deepcopy(self.global_model),
+                                                                          self.train_dataset, list_dps, num_dps,
+                                                                          adversary_list=self.adversary_list,
+                                                                          **self.config['Attack']['args'])
+            else:
+                client = Client(i, copy.deepcopy(self.global_model), self.train_dataset, list_dps, num_dps,
+                                **self.config['Trainer'])
+            # with DP
+            if self.privacy_engine is not None:
+                client.make_private(self.privacy_engine, **self.config['Fed_rdp'])
+
+            self.clients_pool.append(client)
+
+    def generate_budgets(self) -> List[List[float]]:
+        BoundedFunc = lambda values: np.array(
+            [min(max(x, self.config['Fed_rdp']['budgets_setting']['min_epsilon']),
+                 self.config['Fed_rdp']['budgets_setting']['max_epsilon']) for x in values]
+        )
+        budgets = [BoundedFunc(
+            GENERATE_EPSILONS_FUNC[self.config['Fed_rdp']['budgets_setting']['name']](
+                num_dps, self.config['Fed_rdp']['budgets_setting']['args']
+            )
+        ).tolist() for (_, num_dps) in self.client_data_dict.values()]
+
+        return budgets
+
+    def eval_attack(self):
+        attack_accuracy = 0
+        # evaluate attack
+        if self.config['Attack']['name'] == 'DBA':
+            attack_accuracy, _ = evaluate_dba(
+                self.test_dataset,
+                self.global_model,
+                **self.config['Attack']['args']
+            )
+        elif self.config['Attack']['name'] == 'SemanticAttack':
+            attack_accuracy, _ = evaluate_semantic_attack(
+                self.train_dataset,
+                self.global_model,
+                **self.config['Attack']['args']
+            )
+
+        return attack_accuracy
+
+    def fl_train(self):
+        MA = []
+        BA = []
+        for rd in range(self.config['FL']['rounds']):
+
+            self.old_global_models.append(copy.deepcopy(self.global_model.state_dict()))
+
+            # store the local models and loss
+            local_models = []
+            local_losses = []
+
+            # begin training
+            logger.info("-----  Round {:3d}  -----".format(rd))
+
+            # select the clients
+            selected_clients = self.selector.select()
+            logger.info('selected clients:{}'.format(selected_clients))
+            self.select_info.append(selected_clients)
+
+            old_cms = []
+            # distribution and local training
+            for client_id in selected_clients:
+                client = self.clients_pool[client_id]
+                client.receive_global_model(self.global_model)
+                local_model, local_loss = client.local_train()
+                local_models.append(local_model)
+                local_losses.append(local_loss)
+
+                old_cms.append(copy.deepcopy(local_model.state_dict()))
+            self.old_client_models.append(old_cms)
+
+            if self.config['FL']['with_defense']:
+                defender = getattr(defense, self.config['Defense']['name'])(**self.config['Defense']['args'],
+                                                                            adversary_list=self.adversary_list)
+                self.global_model = defender.exec(self.global_model,
+                                                  local_models,
+                                                  selected_clients)
+            else:
+                # normal aggregation
+                self.global_model = average_weights(self.global_model, local_models)
+
+            if rd == self.config['FL']['rounds'] - 1:
+                self.old_global_models.append(copy.deepcopy(self.global_model.state_dict()))
+
+            # compute the average loss in a round
+            round_loss = sum(local_losses) / len(local_losses)
+            logger.info('Training average loss: {:.3f}'.format(round_loss))
+            self.train_losses.append(round_loss)
+
+            # evaluate the global model
+            test_accuracy, test_loss = evaluate_model(
+                dataset=self.test_dataset,
+                model=self.global_model,
+                loss_function=self.config['Trainer']['loss_function'],
+                device='cuda'
+            )
+            logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
+            MA.append(round(test_accuracy.item(), 2))
+            # evaluate attack
+            if self.config['FL']['with_attack']:
+                attack_accuracy = self.eval_attack()
+                logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+                BA.append(round(attack_accuracy.item(), 2))
+
+        logger.debug(f'Main Accuracy:{MA}')
+        logger.debug(f'Attacker Accuracy:{BA}')
+
+    def fl_recover(self):
+        logger.info("________Begin Recover________")
+        recover_server = getattr(recover, self.config['Recover']['name'])(
+            self.test_dataset,
+            self.global_model,
+            self.clients_pool,
+            self.old_global_models,
+            self.old_client_models,
+            self.select_info,
+            self.malicious_clients,
+            self.config['Recover']['args'],
+            self.config['Trainer']['loss_function'],
+            self.train_losses
+        )
+        self.global_model = recover_server.recover()
+
+        # evaluate attack
+        if self.config['FL']['with_attack']:
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
