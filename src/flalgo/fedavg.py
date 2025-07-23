@@ -1,7 +1,6 @@
 import copy
 from typing import List, Tuple, Dict
 
-import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -65,7 +64,7 @@ class FedAvg:
         # with DP
         if self.privacy_engine is not None:
             # get the privacy budget of all client's data
-            total_budgets, target_epsilon = self.generate_budgets()
+            total_budgets, budgets_per_client, target_epsilon = self.generate_budgets()
 
             # get the noise_multiplier
             self.initial_noise_multiplier = get_noise_multiplier_with_fed_rdp(
@@ -84,6 +83,7 @@ class FedAvg:
 
             # initial the privacy accountants
             self.privacy_engine.prepare_fed_rdp(
+                budgets=budgets_per_client,
                 total_budgets=total_budgets,
                 sample_rate=self.config['Fed_rdp']['sample_rate'],
                 eta=self.config['Fed_rdp']['eta'],
@@ -111,7 +111,7 @@ class FedAvg:
 
             self.clients_pool.append(client)
 
-    def generate_budgets(self) -> Tuple[List[List[float]], float]:
+    def generate_budgets(self) -> Tuple[List[List[float]], List[float], float]:
         BoundedFunc = lambda values: [min(max(x, self.config['Fed_rdp']['budgets_setting']['min_epsilon']),
                                           self.config['Fed_rdp']['budgets_setting']['max_epsilon'])
                                       for x in values]
@@ -124,7 +124,7 @@ class FedAvg:
         budgets_per_data = []
         for bd, (_, num_dps) in zip(budgets_per_client, self.client_data_dict.values()):
             budgets_per_data.append([bd] * num_dps)
-        return budgets_per_data, max_budget
+        return budgets_per_data, budgets_per_client, max_budget
 
     def eval_attack(self):
         attack_accuracy = 0
@@ -166,6 +166,7 @@ class FedAvg:
             self.select_info.append(selected_clients)
 
             old_cms = []
+            remaining_budgets = []
             # distribution and local training
             for client_id in selected_clients:
                 client = self.clients_pool[client_id]
@@ -176,7 +177,9 @@ class FedAvg:
                 local_losses.append(local_loss)
 
                 old_cms.append(copy.deepcopy(local_model.state_dict()))
+                remaining_budgets.append(client.remaining_budget)
             self.old_client_models.append(old_cms)
+            logger.info(f"remaining_budget: {remaining_budgets}")
 
             if self.config['FL']['with_defense']:
                 defender = getattr(defense, self.config['Defense']['name'])(**self.config['Defense']['args'],
@@ -215,22 +218,23 @@ class FedAvg:
         logger.debug(f'Attacker Accuracy:{BA}')
 
     def fl_recover(self):
-        logger.info("________Begin Recover________")
-        recover_server = getattr(recover, self.config['Recover']['name'])(
-            self.test_dataset,
-            self.global_model,
-            self.clients_pool,
-            self.old_global_models,
-            self.old_client_models,
-            self.select_info,
-            self.malicious_clients,
-            self.config['Recover']['args'],
-            self.config['Trainer']['loss_function'],
-            self.train_losses
-        )
-        self.global_model = recover_server.recover()
+        if self.config['FL']['with_recover']:
+            logger.info("________Begin Recover________")
+            recover_server = getattr(recover, self.config['Recover']['name'])(
+                self.test_dataset,
+                self.global_model,
+                self.clients_pool,
+                self.old_global_models,
+                self.old_client_models,
+                self.select_info,
+                self.malicious_clients,
+                self.config['Recover']['args'],
+                self.config['Trainer']['loss_function'],
+                self.train_losses
+            )
+            self.global_model = recover_server.recover()
 
-        # evaluate attack
-        if self.config['FL']['with_attack']:
-            attack_accuracy = self.eval_attack()
-            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            # evaluate attack
+            if self.config['FL']['with_attack']:
+                attack_accuracy = self.eval_attack()
+                logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))

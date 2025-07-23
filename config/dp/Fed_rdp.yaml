@@ -4,13 +4,13 @@ Fed_rdp:
   delta: 0.001
   delta_g: 0.1
   noise_config:
-#      type: constant
+      type: constant
 
 #      type: double_log
 #      decay_rate: 0.5
 
-      type: log
-      decay_rate: 0.5
+#      type: log
+#      decay_rate: 0.5
 
 #      type: step
 #      beta: 0.5

@@ -704,16 +704,19 @@ class PrivacyEngine:
     # ---------------------------
     def prepare_fed_rdp(
             self, *,
+            budgets: List[float],
             total_budgets: List[List[float]],
             sample_rate: float = 1.0,
             eta: float = 0.5,
             delta_g: float = 0.1,
     ):
         if self.accountant.mechanism() == "fed_rdp":
-            self.accountant.init(total_budgets=total_budgets[0], sample_rate=sample_rate, eta=eta, delta_g=delta_g)
+            self.accountant.init(budget=budgets[0], total_budgets=total_budgets[0],
+                                 sample_rate=sample_rate, eta=eta, delta_g=delta_g)
         elif self.accountant.mechanism() == "dpw":
-            for _, (budgets, acct) in enumerate(list(zip(total_budgets, self.accountant.accountants))):
-                acct.init(total_budgets=budgets, sample_rate=sample_rate, eta=eta, delta_g=delta_g)
+            for i, (budgets_per_data, acct) in enumerate(list(zip(total_budgets, self.accountant.accountants))):
+                acct.init(budget=budgets[i], total_budgets=budgets_per_data,
+                          sample_rate=sample_rate, eta=eta, delta_g=delta_g)
 
     def make_private_with_fed_rdp(
             self,

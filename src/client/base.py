@@ -37,7 +37,7 @@ class Client:
         self.local_epochs = local_epochs
         self.loss_function = getattr(F, loss_function)
         self.device = device
-        self.available_data_size = self.num_dps
+        self.remaining_budget = 0
 
     def make_private(self,
                      privacy_engine: PrivacyEngine,
@@ -107,10 +107,10 @@ class Client:
                 epoch_loss.append(sum(batch_loss) / len(batch_loss))
 
             # compute the privacy cost and change the sample rate of data
-            epsilon = self.acct.get_epsilon(delta=0.001)
-            # privacy_cost = np.full(len(self.train_dl.dataset), epsilon)
-            # self.train_dl.batch_sampler.sampler.sample_rate[self.acct.total_budgets < privacy_cost] = 0
-            # self.available_data_size = np.count_nonzero(self.train_dl.batch_sampler.sampler.sample_rate)
+            privacy_cost = self.acct.get_epsilon(delta=0.001)
+            self.remaining_budget = self.acct.budget - privacy_cost
+            privacy_costs = np.full(len(self.train_dl.dataset), privacy_cost)
+            self.train_dl.batch_sampler.sampler.sample_rate[self.acct.total_budgets < privacy_costs] = 0
 
         # return the updated model state dict and the average training loss
         return self.model, sum(epoch_loss) / len(epoch_loss)

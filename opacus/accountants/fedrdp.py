@@ -120,6 +120,7 @@ class FedRDPAccountant(IAccountant):
         super().__init__()
 
     def init(self,
+             budget: float = None,
              total_budgets: List[List[float]] = None,
              sample_rate: float = 1.0,
              eta: float = 0.5,
@@ -128,6 +129,7 @@ class FedRDPAccountant(IAccountant):
         self.privacy_costs = []
         self.sample_rate = sample_rate
         self.deltas = []
+        self.budget = budget
         self.total_budgets = total_budgets
         self.eta = eta
         self.delta_g = delta_g
