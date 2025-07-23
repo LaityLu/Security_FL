@@ -3,17 +3,20 @@ seed: 41
 # Federated arguments
 FL:
   name: FedAvg
-  rounds: 10
-  num_clients: 10
-  client_rate: 0.5
+  rounds: 50
+  recover_rounds: 25
+  recover_steps: 1
+  num_clients: 2
+  client_rate: 1.0
   aggregator: averaged_weights
-  with_DP: false
-  with_attack: true
-  with_defense: false
-  with_recover: false
-
   dataset: mnist
   sampler: UniformSampler
+  # true or false
+  with_DP: true
+  with_attack: false
+  with_defense: false
+  with_recover: false
+  # if true, choose one
   dp: Fed_rdp
   attack: DBA
   defense: Flame
@@ -21,20 +24,20 @@ FL:
 
 # local trainer arguments
 Trainer:
-  local_epochs: 1
+  local_epochs: 2
   batch_size: 64
   loss_function: nll_loss
   optimizer:
     name: SGD
     args:
-      lr: 0.02
+      lr: 0.05
       momentum: 0.5
   device: cuda
 
 Selector:
   name: RandomSelector
   args:
-    num_clients: 10
-    client_rate: 0.5
+    num_clients: 2
+    client_rate: 1.0
 
 

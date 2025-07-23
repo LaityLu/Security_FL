@@ -6,14 +6,15 @@ import torch
 from torch.utils.data import Dataset
 
 from opacus import PrivacyEngine
-from opacus.accountants.utils import GENERATE_EPSILONS_FUNC
+from opacus.accountants.utils import GENERATE_EPSILONS_FUNC, get_noise_multiplier_with_fed_rdp
 import src.client as attacker
 from src import defense, recover
 
 from src.client import Client
 from src.utils import setup_logger
 from src.aggregator import average_weights
-from src.utils.helper import evaluate_model, evaluate_dba, evaluate_semantic_attack, set_random_seed
+from src.utils.helper import evaluate_model, evaluate_dba, evaluate_semantic_attack, set_random_seed, \
+    get_noise_multiplier
 
 logger = setup_logger()
 
@@ -45,6 +46,7 @@ class FedAvg:
         self.privacy_engine = None
         if config['FL']['with_DP']:
             self.privacy_engine = PrivacyEngine(accountant="fed_rdp", n_clients=config['FL']['num_clients'])
+            self.initial_noise_multiplier = 1.0
 
         self.config = config
         self.clients_pool: List[Client] = []
@@ -63,7 +65,22 @@ class FedAvg:
         # with DP
         if self.privacy_engine is not None:
             # get the privacy budget of all client's data
-            total_budgets = self.generate_budgets()
+            total_budgets, target_epsilon = self.generate_budgets()
+
+            # get the noise_multiplier
+            self.initial_noise_multiplier = get_noise_multiplier_with_fed_rdp(
+                target_epsilon=target_epsilon,
+                rounds=self.config['FL']['rounds'],
+                steps=self.config['Trainer']['local_epochs'],
+                recover_rounds=self.config['FL']['recover_rounds'],
+                recover_steps=self.config['FL']['recover_steps'],
+                sample_rate=self.config['Fed_rdp']['sample_rate'],
+                delta=self.config['Fed_rdp']['delta'],
+                delta_g=self.config['Fed_rdp']['delta_g'],
+                eta=self.config['Fed_rdp']['eta'],
+                noise_config=self.config['Fed_rdp']['noise_config']
+            )
+            logger.info(f"The initial noise_multiplier: {self.initial_noise_multiplier}")
 
             # initial the privacy accountants
             self.privacy_engine.prepare_fed_rdp(
@@ -88,22 +105,26 @@ class FedAvg:
                                 **self.config['Trainer'])
             # with DP
             if self.privacy_engine is not None:
-                client.make_private(self.privacy_engine, **self.config['Fed_rdp'])
+                client.make_private(self.privacy_engine,
+                                    noise_multiplier=self.initial_noise_multiplier,
+                                    **self.config['Fed_rdp'])
 
             self.clients_pool.append(client)
 
-    def generate_budgets(self) -> List[List[float]]:
-        BoundedFunc = lambda values: np.array(
-            [min(max(x, self.config['Fed_rdp']['budgets_setting']['min_epsilon']),
-                 self.config['Fed_rdp']['budgets_setting']['max_epsilon']) for x in values]
-        )
-        budgets = [BoundedFunc(
+    def generate_budgets(self) -> Tuple[List[List[float]], float]:
+        BoundedFunc = lambda values: [min(max(x, self.config['Fed_rdp']['budgets_setting']['min_epsilon']),
+                                          self.config['Fed_rdp']['budgets_setting']['max_epsilon'])
+                                      for x in values]
+        budgets_per_client = BoundedFunc(
             GENERATE_EPSILONS_FUNC[self.config['Fed_rdp']['budgets_setting']['name']](
-                num_dps, self.config['Fed_rdp']['budgets_setting']['args']
+                self.config['FL']['num_clients'], self.config['Fed_rdp']['budgets_setting']['args']
             )
-        ).tolist() for (_, num_dps) in self.client_data_dict.values()]
-
-        return budgets
+        )
+        max_budget = max(budgets_per_client)
+        budgets_per_data = []
+        for bd, (_, num_dps) in zip(budgets_per_client, self.client_data_dict.values()):
+            budgets_per_data.append([bd] * num_dps)
+        return budgets_per_data, max_budget
 
     def eval_attack(self):
         attack_accuracy = 0
@@ -128,6 +149,8 @@ class FedAvg:
         BA = []
         for rd in range(self.config['FL']['rounds']):
 
+            noise_multiplier = get_noise_multiplier(self.initial_noise_multiplier, rd,
+                                                    self.config['Fed_rdp']['noise_config'])
             self.old_global_models.append(copy.deepcopy(self.global_model.state_dict()))
 
             # store the local models and loss
@@ -146,6 +169,7 @@ class FedAvg:
             # distribution and local training
             for client_id in selected_clients:
                 client = self.clients_pool[client_id]
+                client.change_noise(noise_multiplier)
                 client.receive_global_model(self.global_model)
                 local_model, local_loss = client.local_train()
                 local_models.append(local_model)

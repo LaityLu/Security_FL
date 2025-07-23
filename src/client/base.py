@@ -63,6 +63,9 @@ class Client:
         for old_param, new_param in zip(self.model.parameters(), global_model.parameters()):
             old_param.data = new_param.detach().clone().to(old_param.device)
 
+    def change_noise(self, noise_multiplier: float):
+        self.optimizer.noise_multiplier = noise_multiplier
+
     def local_train(self) -> Tuple[torch.nn.Module, float]:
         # logger.info('Client {} training'.format(self.id))
 
@@ -105,8 +108,9 @@ class Client:
 
             # compute the privacy cost and change the sample rate of data
             epsilon = self.acct.get_epsilon(delta=0.001)
-            privacy_cost = np.full(len(self.train_dl.dataset), epsilon)
-            self.train_dl.batch_sampler.sample_rate[self.acct.total_budgets < privacy_cost] = 0
+            # privacy_cost = np.full(len(self.train_dl.dataset), epsilon)
+            # self.train_dl.batch_sampler.sampler.sample_rate[self.acct.total_budgets < privacy_cost] = 0
+            # self.available_data_size = np.count_nonzero(self.train_dl.batch_sampler.sampler.sample_rate)
 
         # return the updated model state dict and the average training loss
         return self.model, sum(epoch_loss) / len(epoch_loss)

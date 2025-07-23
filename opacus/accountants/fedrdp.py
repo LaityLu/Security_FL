@@ -94,14 +94,33 @@ def binary_search_epsilon_g(eps_0, k, epsilons, deltas, delta_g, a_i):
     return (a + b) // 2 + 1, ((a + b) // 2 + 1) * eps_0
 
 
+def compute_privacy_cost_one_step(noise_multiplier, sample_rate, delta,
+                                  alphas: Optional[List[Union[float, int]]] = None):
+    """ compute the privacy cost of a step """
+    if alphas is None:
+        alphas = generate_rdp_orders()
+    orders_vec = np.atleast_1d(alphas)
+    inner_rdp = privacy_analysis.compute_rdp(q=sample_rate, noise_multiplier=noise_multiplier, steps=1,
+                                             orders=alphas)
+    eps_vec = (
+            inner_rdp
+            - (np.log(delta) + np.log(orders_vec)) / (orders_vec - 1)
+            + np.log((orders_vec - 1) / orders_vec)
+    )
+    idx_opt = np.nanargmin(eps_vec)
+    eps = eps_vec[idx_opt]
+    eps = eps * sample_rate
+    return eps, delta
+
+
 class FedRDPAccountant(IAccountant):
     DEFAULT_ALPHAS = generate_rdp_orders()
 
     def __init__(self):
         super().__init__()
 
-    def init(self, *,
-             total_budgets: List[float],
+    def init(self,
+             total_budgets: List[List[float]] = None,
              sample_rate: float = 1.0,
              eta: float = 0.5,
              delta_g: float = 0.1,
@@ -114,9 +133,6 @@ class FedRDPAccountant(IAccountant):
         self.delta_g = delta_g
 
     def step(self, noise_multiplier: float, sample_rate: float):
-        """
-            "num_steps" is always equal to 1
-        """
         if len(self.history) >= 1:
             last_noise_multiplier, last_sample_rate, num_steps = self.history.pop()
             if (
@@ -124,9 +140,12 @@ class FedRDPAccountant(IAccountant):
                     and last_sample_rate == sample_rate
             ):
                 self.history.append(
-                    (last_noise_multiplier, last_sample_rate, num_steps)
+                    (last_noise_multiplier, last_sample_rate, num_steps + 1)
                 )
             else:
+                self.history.append(
+                    (last_noise_multiplier, last_sample_rate, num_steps)
+                )
                 self.history.append((noise_multiplier, sample_rate, 1))
 
         else:
@@ -141,24 +160,21 @@ class FedRDPAccountant(IAccountant):
         # compute the privacy cost of a step
         if alphas is None:
             alphas = self.DEFAULT_ALPHAS
-        noise_multiplier, sample_rate, _ = self.history[-1]
-        orders_vec = np.atleast_1d(alphas)
-        inner_rdp = privacy_analysis.compute_rdp(q=sample_rate, noise_multiplier=noise_multiplier, steps=1,
-                                                 orders=alphas)
-        eps_vec = (
-                inner_rdp
-                - (np.log(delta) + np.log(orders_vec)) / (orders_vec - 1)
-                + np.log((orders_vec - 1) / orders_vec)
-        )
-        idx_opt = np.nanargmin(eps_vec)
-        eps = eps_vec[idx_opt]
-        eps = eps * sample_rate
-        # save the historical privacy cost
-        self.privacy_costs.append(eps)
-        self.deltas.append(delta)
+        for (noise_multiplier, sample_rate, num_steps) in self.history:
+            eps, delta = compute_privacy_cost_one_step(
+                noise_multiplier=noise_multiplier,
+                sample_rate=sample_rate,
+                delta=delta,
+                alphas=alphas
+            )
+            for step in range(num_steps):
+                # save the historical privacy cost
+                self.privacy_costs.append(eps)
+                self.deltas.append(delta)
+        self.history = []
 
         if len(self.privacy_costs) == 1:
-            return eps, 0
+            return self.privacy_costs[0], 0
 
         # compute the total privacy cost from the beginning
         eps_mean = sum(self.privacy_costs) / len(self.privacy_costs)

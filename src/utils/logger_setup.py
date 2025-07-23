@@ -37,7 +37,7 @@ def setup_logger(log_file=None, name='main_logger'):
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    # 禁用 root logger(吐槽opacus)
+    # 禁用 root logger
     log_config = {
         'version': 1,
         'disable_existing_loggers': False,
