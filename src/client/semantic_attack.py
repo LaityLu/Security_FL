@@ -1,10 +1,7 @@
 from typing import Tuple
 
 import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
-import torch.nn.functional as F
-import torch.optim as optim
+from torch.utils.data import Dataset
 
 from . import Client
 from ..utils import setup_logger
@@ -114,10 +111,14 @@ class SemanticAttack(Client):
                     # print(sum(batch_loss) / len(batch_loss))
                 epoch_loss.append(sum(batch_loss) / len(batch_loss))
 
-        # scale the model weight
-        for key, value in self.model.state_dict().items():
-            new_value = global_model[key] + (value - global_model[key]) * self.scale_weight
-            self.model.state_dict()[key].copy_(new_value)
+            # scale the model weight
+            for key, value in self.model.state_dict().items():
+                new_value = global_model[key] + (value - global_model[key]) * self.scale_weight
+                self.model.state_dict()[key].copy_(new_value)
+
+            # compute the privacy cost and change the sample rate of data
+            privacy_cost = self.acct.get_epsilon(delta=0.001)
+            self.remaining_budget = self.acct.budget - privacy_cost
 
         # return the updated model state dict and the average loss
         return self.model, sum(epoch_loss) / len(epoch_loss)

@@ -8,7 +8,7 @@ from src.utils.helper import set_random_seed
 
 # get the config file path
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='config/test/test01.yaml', help='the path of config file')
+parser.add_argument('--config', type=str, default='config/test/mnist.yaml', help='the path of config file')
 args = parser.parse_args()
 
 # load the config file

@@ -1,7 +1,6 @@
 import copy
 from typing import List, Tuple
 
-import numpy as np
 import torch
 from torch import optim
 from torch.utils.data import Dataset, DataLoader
@@ -109,8 +108,8 @@ class Client:
             # compute the privacy cost and change the sample rate of data
             privacy_cost = self.acct.get_epsilon(delta=0.001)
             self.remaining_budget = self.acct.budget - privacy_cost
-            privacy_costs = np.full(len(self.train_dl.dataset), privacy_cost)
-            self.train_dl.batch_sampler.sampler.sample_rate[self.acct.total_budgets < privacy_costs] = 0
+            # privacy_costs = np.full(len(self.train_dl.dataset), privacy_cost)
+            # self.train_dl.batch_sampler.sampler.sample_rate[self.acct.total_budgets < privacy_costs] = 0
 
         # return the updated model state dict and the average training loss
         return self.model, sum(epoch_loss) / len(epoch_loss)

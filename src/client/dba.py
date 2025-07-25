@@ -110,6 +110,9 @@ class DBA(Client):
                     batch_loss.append(loss.item())
                     # print(sum(batch_loss) / len(batch_loss))
                 epoch_loss.append(sum(batch_loss) / len(batch_loss))
+                # compute the privacy cost and change the sample rate of data
+                privacy_cost = self.acct.get_epsilon(delta=0.001)
+                self.remaining_budget = self.acct.budget - privacy_cost
 
         # return the updated model state dict and the average loss
         return self.model, sum(epoch_loss) / len(epoch_loss)

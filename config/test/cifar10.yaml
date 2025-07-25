@@ -6,10 +6,10 @@ FL:
   rounds: 50
   recover_rounds: 25
   recover_steps: 1
-  num_clients: 2
+  num_clients: 10
   client_rate: 1.0
   aggregator: averaged_weights
-  dataset: mnist
+  dataset: cifar10
   sampler: UniformSampler
   # true or false
   with_DP: true
@@ -19,25 +19,25 @@ FL:
   # if true, choose one
   dp: Fed_rdp
   attack: DBA
-  defense: Flame
+  defense: Ours
   recover: FedRecover
 
 # local trainer arguments
 Trainer:
   local_epochs: 2
-  batch_size: 64
+  batch_size: 128
   loss_function: nll_loss
   optimizer:
     name: SGD
     args:
       lr: 0.05
-      momentum: 0.5
+      momentum: 0.9
   device: cuda
 
 Selector:
   name: RandomSelector
   args:
-    num_clients: 2
+    num_clients: 10
     client_rate: 1.0
 
 

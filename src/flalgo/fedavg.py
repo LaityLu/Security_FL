@@ -45,7 +45,7 @@ class FedAvg:
         self.privacy_engine = None
         if config['FL']['with_DP']:
             self.privacy_engine = PrivacyEngine(accountant="fed_rdp", n_clients=config['FL']['num_clients'])
-            self.initial_noise_multiplier = 1.0
+            self.initial_noise_multipliers = []
 
         self.config = config
         self.clients_pool: List[Client] = []
@@ -64,22 +64,24 @@ class FedAvg:
         # with DP
         if self.privacy_engine is not None:
             # get the privacy budget of all client's data
-            total_budgets, budgets_per_client, target_epsilon = self.generate_budgets()
+            total_budgets, budgets_per_client = self.generate_budgets()
 
-            # get the noise_multiplier
-            self.initial_noise_multiplier = get_noise_multiplier_with_fed_rdp(
-                target_epsilon=target_epsilon,
-                rounds=self.config['FL']['rounds'],
-                steps=self.config['Trainer']['local_epochs'],
-                recover_rounds=self.config['FL']['recover_rounds'],
-                recover_steps=self.config['FL']['recover_steps'],
-                sample_rate=self.config['Fed_rdp']['sample_rate'],
-                delta=self.config['Fed_rdp']['delta'],
-                delta_g=self.config['Fed_rdp']['delta_g'],
-                eta=self.config['Fed_rdp']['eta'],
-                noise_config=self.config['Fed_rdp']['noise_config']
-            )
-            logger.info(f"The initial noise_multiplier: {self.initial_noise_multiplier}")
+            # get the initial_noise_multiplier
+            for target_epsilon in budgets_per_client:
+                noise = get_noise_multiplier_with_fed_rdp(
+                    target_epsilon=target_epsilon,
+                    rounds=self.config['FL']['rounds'],
+                    steps=self.config['Trainer']['local_epochs'],
+                    recover_rounds=self.config['FL']['recover_rounds'],
+                    recover_steps=self.config['FL']['recover_steps'],
+                    sample_rate=self.config['Fed_rdp']['sample_rate'],
+                    delta=self.config['Fed_rdp']['delta'],
+                    delta_g=self.config['Fed_rdp']['delta_g'],
+                    eta=self.config['Fed_rdp']['eta'],
+                    noise_config=self.config['Fed_rdp']['noise_config']
+                )
+                self.initial_noise_multipliers.append(noise)
+            logger.info(f"The initial noise_multiplier: {self.initial_noise_multipliers}")
 
             # initial the privacy accountants
             self.privacy_engine.prepare_fed_rdp(
@@ -106,12 +108,12 @@ class FedAvg:
             # with DP
             if self.privacy_engine is not None:
                 client.make_private(self.privacy_engine,
-                                    noise_multiplier=self.initial_noise_multiplier,
+                                    noise_multiplier=self.initial_noise_multipliers[i],
                                     **self.config['Fed_rdp'])
 
             self.clients_pool.append(client)
 
-    def generate_budgets(self) -> Tuple[List[List[float]], List[float], float]:
+    def generate_budgets(self) -> Tuple[List[List[float]], List[float]]:
         BoundedFunc = lambda values: [min(max(x, self.config['Fed_rdp']['budgets_setting']['min_epsilon']),
                                           self.config['Fed_rdp']['budgets_setting']['max_epsilon'])
                                       for x in values]
@@ -120,11 +122,10 @@ class FedAvg:
                 self.config['FL']['num_clients'], self.config['Fed_rdp']['budgets_setting']['args']
             )
         )
-        max_budget = max(budgets_per_client)
         budgets_per_data = []
         for bd, (_, num_dps) in zip(budgets_per_client, self.client_data_dict.values()):
             budgets_per_data.append([bd] * num_dps)
-        return budgets_per_data, budgets_per_client, max_budget
+        return budgets_per_data, budgets_per_client
 
     def eval_attack(self):
         attack_accuracy = 0
@@ -149,8 +150,6 @@ class FedAvg:
         BA = []
         for rd in range(self.config['FL']['rounds']):
 
-            noise_multiplier = get_noise_multiplier(self.initial_noise_multiplier, rd,
-                                                    self.config['Fed_rdp']['noise_config'])
             self.old_global_models.append(copy.deepcopy(self.global_model.state_dict()))
 
             # store the local models and loss
@@ -170,7 +169,13 @@ class FedAvg:
             # distribution and local training
             for client_id in selected_clients:
                 client = self.clients_pool[client_id]
-                client.change_noise(noise_multiplier)
+
+                if self.config['FL']['with_DP']:
+                    # get the personalized noise_multiplier
+                    noise_multiplier = get_noise_multiplier(self.initial_noise_multipliers[client_id], rd,
+                                                            self.config['Fed_rdp']['noise_config'])
+                    client.change_noise(noise_multiplier)
+
                 client.receive_global_model(self.global_model)
                 local_model, local_loss = client.local_train()
                 local_models.append(local_model)
@@ -179,7 +184,9 @@ class FedAvg:
                 old_cms.append(copy.deepcopy(local_model.state_dict()))
                 remaining_budgets.append(client.remaining_budget)
             self.old_client_models.append(old_cms)
-            logger.info(f"remaining_budget: {remaining_budgets}")
+
+            if self.config['FL']['with_DP']:
+                logger.info(f"remaining_budget: {remaining_budgets}")
 
             if self.config['FL']['with_defense']:
                 defender = getattr(defense, self.config['Defense']['name'])(**self.config['Defense']['args'],
