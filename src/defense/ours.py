@@ -15,6 +15,7 @@ class Ours:
                  adversary_list: list,
                  *args,
                  **kwargs):
+        self.benign_clients = []
         self.adversary_list = adversary_list
         self.FN = 0
         self.FP = 0
@@ -96,7 +97,7 @@ class Ours:
                     bgn_idx.append(i)
                     benign_clients.append(client_idxes[i])
                     adv_clients.remove(client_idxes[i])
-
+        self.benign_clients = benign_clients
         logger.debug("cluster labels: {}".format(cluster_labels))
         logger.debug("The benign clients: {}".format(benign_clients))
         logger.debug("The malicious clients: {}".format(adv_clients))

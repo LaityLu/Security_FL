@@ -12,8 +12,7 @@ from src import defense, recover
 from src.client import Client
 from src.utils import setup_logger
 from src.aggregator import average_weights
-from src.utils.helper import evaluate_model, evaluate_dba, evaluate_semantic_attack, set_random_seed, \
-    get_noise_multiplier
+from src.utils.helper import evaluate_model, evaluate_dba, evaluate_semantic_attack, set_random_seed
 
 logger = setup_logger()
 
@@ -50,21 +49,28 @@ class FedAvg:
         self.config = config
         self.clients_pool: List[Client] = []
         self.adversary_list = []
+        self.remaining_budgets = []
+
+        # initiate clients
         self.initial_clients()
 
         # for recover
         self.old_global_models = []
         self.old_client_models = []
+        self.privacy_costs = []
+        self.remaining_budgets_per_client = []
         self.select_info = []
         self.malicious_clients = self.adversary_list
         self.train_losses = []
         self.time_cost = 0
+        self.aggr_clients = None
 
     def initial_clients(self):
         # with DP
         if self.privacy_engine is not None:
             # get the privacy budget of all client's data
             total_budgets, budgets_per_client = self.generate_budgets()
+            self.remaining_budgets.append(sum(budgets_per_client))
 
             # get the initial_noise_multiplier
             for target_epsilon in budgets_per_client:
@@ -107,7 +113,7 @@ class FedAvg:
                                 **self.config['Trainer'])
             # with DP
             if self.privacy_engine is not None:
-                client.make_private(self.privacy_engine,
+                client.make_private(privacy_engine=self.privacy_engine,
                                     noise_multiplier=self.initial_noise_multipliers[i],
                                     **self.config['Fed_rdp'])
 
@@ -155,6 +161,7 @@ class FedAvg:
             # store the local models and loss
             local_models = []
             local_losses = []
+            privacy_cost = 0
 
             # begin training
             logger.info("-----  Round {:3d}  -----".format(rd))
@@ -169,21 +176,18 @@ class FedAvg:
             # distribution and local training
             for client_id in selected_clients:
                 client = self.clients_pool[client_id]
-
-                if self.config['FL']['with_DP']:
-                    # get the personalized noise_multiplier
-                    noise_multiplier = get_noise_multiplier(self.initial_noise_multipliers[client_id], rd,
-                                                            self.config['Fed_rdp']['noise_config'])
-                    client.change_noise(noise_multiplier)
-
                 client.receive_global_model(self.global_model)
                 local_model, local_loss = client.local_train()
                 local_models.append(local_model)
                 local_losses.append(local_loss)
+                privacy_cost += client.privacy_cost_this_round
 
                 old_cms.append(copy.deepcopy(local_model.state_dict()))
                 remaining_budgets.append(client.remaining_budget)
             self.old_client_models.append(old_cms)
+            self.privacy_costs.append(privacy_cost)
+            self.remaining_budgets.append(self.remaining_budgets[0] - sum(self.privacy_costs))
+            self.remaining_budgets_per_client.append(remaining_budgets)
 
             if self.config['FL']['with_DP']:
                 logger.info(f"remaining_budget: {remaining_budgets}")
@@ -194,6 +198,7 @@ class FedAvg:
                 self.global_model = defender.exec(self.global_model,
                                                   local_models,
                                                   selected_clients)
+                self.aggr_clients.append(defender.benign_clients)
             else:
                 # normal aggregation
                 self.global_model = average_weights(self.global_model, local_models)
@@ -223,24 +228,40 @@ class FedAvg:
 
         logger.debug(f'Main Accuracy:{MA}')
         logger.debug(f'Attacker Accuracy:{BA}')
+        logger.debug(f'Privacy Cost:{self.privacy_costs}')
+        logger.debug(f'Remaining Budget:{self.remaining_budgets}')
 
     def fl_recover(self):
         if self.config['FL']['with_recover']:
+            if self.aggr_clients is None:
+                self.aggr_clients = self.select_info
             logger.info("________Begin Recover________")
             recover_server = getattr(recover, self.config['Recover']['name'])(
-                self.test_dataset,
-                self.global_model,
-                self.clients_pool,
-                self.old_global_models,
-                self.old_client_models,
-                self.select_info,
-                self.malicious_clients,
-                self.config['Recover']['args'],
-                self.config['Trainer']['loss_function'],
-                self.train_losses
+                test_dataset=self.test_dataset,
+                global_model=self.global_model,
+                clients_pool=self.clients_pool,
+                old_global_models=self.old_global_models,
+                old_client_models=self.old_client_models,
+                old_rounds=self.config['FL']['rounds'],
+                select_info=self.select_info,
+                malicious_clients=self.malicious_clients,
+                recover_config=self.config['Recover']['args'],
+                loss_function=self.config['Trainer']['loss_function'],
+                train_losses=self.train_losses,
+                privacy_costs=self.privacy_costs,
+                remaining_budgets=self.remaining_budgets,
+                remaining_budgets_per_client=self.remaining_budgets_per_client,
+                aggr_clients=self.aggr_clients,
+                dp_config=self.config['Fed_rdp']
             )
             self.global_model = recover_server.recover()
 
+            client_id = [i for i in range(self.config['FL']['num_clients']) if i not in self.malicious_clients]
+            logger.debug(f'Client id:{client_id}')
+            remaining_budgets = []
+            for c_id in client_id:
+                remaining_budgets.append(self.clients_pool[c_id].remaining_budget)
+            logger.debug(f'Remaining Budget:{remaining_budgets}')
             # evaluate attack
             if self.config['FL']['with_attack']:
                 attack_accuracy = self.eval_attack()

@@ -3,8 +3,8 @@ seed: 41
 # Federated arguments
 FL:
   name: FedAvg
-  rounds: 30
-  recover_rounds: 15
+  rounds: 10
+  recover_rounds: 6
   recover_steps: 1
   num_clients: 10
   client_rate: 1.0
@@ -13,14 +13,14 @@ FL:
   sampler: UniformSampler
   # true or false
   with_DP: true
-  with_attack: false
+  with_attack: true
   with_defense: false
-  with_recover: false
+  with_recover: true
   # if true, choose one
   dp: Fed_rdp
   attack: DBA
   defense: Ours
-  recover: FedRecover
+  recover: Ours
 
 # local trainer arguments
 Trainer:

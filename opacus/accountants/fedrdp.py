@@ -126,11 +126,11 @@ class FedRDPAccountant(IAccountant):
              eta: float = 0.5,
              delta_g: float = 0.1,
              ):
-        self.privacy_costs = []
         self.sample_rate = sample_rate
-        self.deltas = []
         self.budget = budget
-        self.total_budgets = total_budgets
+        self.privacy_costs = []
+        self.deltas = []
+        # self.total_budgets = total_budgets
         self.eta = eta
         self.delta_g = delta_g
 

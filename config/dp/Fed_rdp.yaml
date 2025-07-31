@@ -6,17 +6,14 @@ Fed_rdp:
   noise_config:
       type: constant
 
-#      type: double_log
-#      decay_rate: 0.5
-
-#      type: log
-#      decay_rate: 0.5
-
 #      type: step
 #      beta: 0.5
 #      rounds: 50
 
-  max_grad_norm: 2.0
+#      type: log
+#      decay_rate: 0.5
+
+  max_grad_norm: 3.0
   max_physical_batch_size: 128
   budgets_setting:
     min_epsilon: 5.0

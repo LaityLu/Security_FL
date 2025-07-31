@@ -147,7 +147,8 @@ def get_noise_multiplier_with_fed_rdp(
         delta_g: float = 0.1,
         eta: float = 0.5,
         noise_config: dict = None,
-        tolerance: float = 0.02
+        eps_tolerance: float = 0.1,
+        noise_tolerance: float = 0.01
 ) -> float:
     r"""
     Computes the noise level sigma to reach a total budget at the end of epochs, with a given sample_rate
@@ -155,7 +156,7 @@ def get_noise_multiplier_with_fed_rdp(
 
     eps_high = float("inf")
 
-    sigma_low, sigma_high = 0, 5
+    sigma_low, sigma_high = 0, 2.5
 
     while eps_high > target_epsilon:
         sigma_high = 2 * sigma_high
@@ -173,7 +174,7 @@ def get_noise_multiplier_with_fed_rdp(
         if sigma_high > MAX_SIGMA:
             raise ValueError("The privacy budget is too low.")
 
-    while sigma_high - sigma_low > tolerance:
+    while target_epsilon - eps_high > eps_tolerance and sigma_high - sigma_low > noise_tolerance:
         sigma = (sigma_low + sigma_high) / 2
         privacy_costs, deltas = compute_privacy_cost_all_step(
             rounds=rounds,
@@ -189,6 +190,74 @@ def get_noise_multiplier_with_fed_rdp(
 
         if eps_g < target_epsilon:
             sigma_high = sigma
+            eps_high = eps_g
+        else:
+            sigma_low = sigma
+
+    return sigma_high
+
+
+def get_noise_multiplier_with_fed_rdp_recover(
+        target_epsilon: float,
+        recover_rounds: int = 25,
+        recover_steps: int = 2,
+        sample_rate: float = 0.25,
+        delta: float = 0.001,
+        delta_g: float = 0.1,
+        eta: float = 0.5,
+        noise_config: dict = None,
+        eps_tolerance: float = 0.1,
+        noise_tolerance: float = 0.01,
+        history_privacy_costs: list = None,
+        history_deltas: list = None
+) -> float:
+    r"""
+    Computes the noise level sigma to reach a total budget at the end of epochs, with a given sample_rate
+    """
+
+    eps_high = float("inf")
+
+    sigma_low, sigma_high = 0, 5
+
+    while eps_high > target_epsilon:
+        sigma_high = 2 * sigma_high
+        privacy_costs, deltas = compute_privacy_cost_all_step(
+            rounds=0,
+            steps=0,
+            recover_rounds=recover_rounds,
+            recover_steps=recover_steps,
+            initial_sigma=sigma_high,
+            sample_rate=sample_rate,
+            delta=delta,
+            noise_config=noise_config
+        )
+        if history_privacy_costs is not None:
+            privacy_costs = privacy_costs + history_privacy_costs
+            deltas = deltas + history_deltas
+        _, eps_high = get_privacy_spent(privacy_costs, deltas, delta_g, eta)
+        if sigma_high > MAX_SIGMA:
+            raise ValueError("The privacy budget is too low.")
+
+    while target_epsilon - eps_high > eps_tolerance and sigma_high - sigma_low > noise_tolerance:
+        sigma = (sigma_low + sigma_high) / 2
+        privacy_costs, deltas = compute_privacy_cost_all_step(
+            rounds=0,
+            steps=0,
+            recover_rounds=recover_rounds,
+            recover_steps=recover_steps,
+            initial_sigma=sigma,
+            sample_rate=sample_rate,
+            delta=delta,
+            noise_config=noise_config
+        )
+        if history_privacy_costs is not None:
+            privacy_costs = privacy_costs + history_privacy_costs
+            deltas = deltas + history_deltas
+        _, eps_g = get_privacy_spent(privacy_costs, deltas, delta_g, eta)
+
+        if eps_g < target_epsilon:
+            sigma_high = sigma
+            eps_high = eps_g
         else:
             sigma_low = sigma
 

@@ -19,6 +19,7 @@ class FedEraser(RecoverBase):
                  clients_pool,
                  old_global_models,
                  old_client_models,
+                 old_rounds,
                  select_info,
                  malicious_clients,
                  recover_config,
@@ -34,7 +35,7 @@ class FedEraser(RecoverBase):
             select_info,
             malicious_clients,
             loss_function)
-        self.rounds = recover_config['rounds']
+        self.rounds = old_rounds
         self.round_interval = recover_config.get('round_interval', 1)
         self.local_epochs = recover_config['local_epochs']
 

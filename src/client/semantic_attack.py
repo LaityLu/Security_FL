@@ -84,6 +84,7 @@ class SemanticAttack(Client):
                 # store the loss for each batch
                 batch_loss = []
                 self.optimizer.expected_batch_size = 0
+                self.change_noise()
                 # poisoning data for each batch
                 for batch_idx, (images, labels) in enumerate(self.train_dl):
                     for i in range(len(self.poison_images['train'])):
@@ -116,9 +117,11 @@ class SemanticAttack(Client):
                 new_value = global_model[key] + (value - global_model[key]) * self.scale_weight
                 self.model.state_dict()[key].copy_(new_value)
 
-            # compute the privacy cost and change the sample rate of data
+            # compute the privacy cost
             privacy_cost = self.acct.get_epsilon(delta=0.001)
+            tempt = self.remaining_budget
             self.remaining_budget = self.acct.budget - privacy_cost
+            self.privacy_cost_this_round = tempt - self.remaining_budget
 
         # return the updated model state dict and the average loss
         return self.model, sum(epoch_loss) / len(epoch_loss)
