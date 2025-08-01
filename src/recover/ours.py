@@ -172,6 +172,7 @@ class Ours(FedEraser):
 
         idxes = [[index for index, c_id in enumerate(self.select_info[rd])
                   if c_id == bgn_c_id] for bgn_c_id in self.aggr_clients[rd]]
+        privacy_budgets_ = [privacy_budgets[i] for i in idxes]
         CM_list = [CM_list[i[0]] for i in idxes]
         CM_list = model_state_dict_to_traj(CM_list)
 
@@ -188,15 +189,15 @@ class Ours(FedEraser):
         logger.debug(f'The old clients in round {rd}: {self.select_info[rd]}')
         logger.debug(f'The aggregated clients in round {rd}: {self.aggr_clients[rd]}')
         logger.debug(f'The similarity: {similarity}')
-        logger.debug(f'The privacy budgets: {privacy_budgets}')
+        logger.debug(f'The privacy budgets: {privacy_budgets_}')
 
         # Normalization
         similarity = np.array(similarity)
         similarity /= similarity.sum()
-        privacy_budgets = np.array(privacy_budgets)
-        privacy_budgets /= privacy_budgets.sum()
+        privacy_budgets_ = np.array(privacy_budgets_)
+        privacy_budgets_ /= privacy_budgets_.sum()
         # compute the scores
-        scores = (1 - self.zeta) * similarity + self.zeta * privacy_budgets
+        scores = (1 - self.zeta) * similarity + self.zeta * privacy_budgets_
         logger.debug(f'The final scores: {scores}')
         # choose
         k = int(len(CM_list) * self.X_clients)
