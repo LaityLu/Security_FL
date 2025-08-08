@@ -6,3 +6,4 @@ data/*
 logs/*
 /Test*
 /tutorials.ipynb
+/plot.ipynb

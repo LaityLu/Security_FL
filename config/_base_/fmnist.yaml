@@ -7,3 +7,4 @@ Model:
   name: CNNFashion_Mnist
   args:
     num_classes: 10
+    num_groups: 4

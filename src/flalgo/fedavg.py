@@ -63,7 +63,7 @@ class FedAvg:
         self.malicious_clients = self.adversary_list
         self.train_losses = []
         self.time_cost = 0
-        self.aggr_clients = None
+        self.aggr_clients = []
 
     def initial_clients(self):
         # with DP
@@ -233,7 +233,7 @@ class FedAvg:
 
     def fl_recover(self):
         if self.config['FL']['with_recover']:
-            if self.aggr_clients is None:
+            if len(self.aggr_clients) == 0:
                 self.aggr_clients = self.select_info
             logger.info("________Begin Recover________")
             recover_server = getattr(recover, self.config['Recover']['name'])(

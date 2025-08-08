@@ -3,22 +3,22 @@ import torch.nn.functional as F
 
 
 class CNNFashion_Mnist(nn.Module):
-    def __init__(self, num_classes=10, *args, **kwargs):
+    def __init__(self, num_classes=10, num_groups=4, *args, **kwargs):
         super(CNNFashion_Mnist, self).__init__()
         self.layer1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=(5, 5), padding=2),
-            nn.BatchNorm2d(16),
+            nn.GroupNorm(num_groups=num_groups, num_channels=16),
             nn.ReLU()
         )
         self.pool1 = nn.MaxPool2d(2)
         self.layer2 = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=(3, 3)),
-            nn.BatchNorm2d(32),
+            nn.GroupNorm(num_groups=num_groups, num_channels=32),
             nn.ReLU()
         )
         self.layer3 = nn.Sequential(
             nn.Conv2d(32, 64, kernel_size=(3, 3)),
-            nn.BatchNorm2d(64),
+            nn.GroupNorm(num_groups=num_groups, num_channels=64),
             nn.ReLU()
         )
         self.pool2 = nn.MaxPool2d(2)

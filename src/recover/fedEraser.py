@@ -104,6 +104,9 @@ class FedEraser(RecoverBase):
 
     def calibration_training(self, old_global_model_state, old_cm_state, new_global_model_state, new_cm):
 
+        if len(old_cm_state) == 0:
+            return self.global_model
+
         return_model_state = dict()  # newGM_t + ||oldCM - oldGM_t||*(newCM - newGM_t)/||newCM - newGM_t||
 
         assert len(old_cm_state) == len(new_cm)

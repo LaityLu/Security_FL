@@ -7,3 +7,4 @@ Model:
   name: CNNCifar
   args:
     num_classes: 10
+    num_groups: 16

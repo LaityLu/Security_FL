@@ -79,8 +79,9 @@ class Client:
         self.optimizer.noise_multiplier = noise_multiplier
         self.step += 1
 
-    def prepare_recover(self, initial_noise_multiplier):
+    def prepare_recover(self, initial_noise_multiplier, noise_config):
         self.initial_noise_multiplier = initial_noise_multiplier
+        self.noise_config = noise_config
         self.step = 0
 
     def local_train(self) -> Tuple[torch.nn.Module, float]:
@@ -128,7 +129,7 @@ class Client:
             privacy_cost = self.acct.get_epsilon(delta=0.001)
             tempt = self.remaining_budget
             self.remaining_budget = self.acct.budget - privacy_cost
-            self.privacy_cost_this_round = tempt - self.remaining_budget
+            self.privacy_cost_this_round = max(tempt - self.remaining_budget, 0)
 
             # return the updated model state dict and the average training loss
             return self.model, sum(epoch_loss) / len(epoch_loss)

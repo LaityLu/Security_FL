@@ -19,19 +19,19 @@ Attack:
                  131, 132, 133, 134, 135, 136, 137, 138, 139, 140,
                  141, 142, 143, 144, 145, 146, 147, 148, 149]  # it's useless when random attack
   args:
-    with_dp: false
+    with_dp: true
     local_epochs: 2
     batch_size: 128
     loss_function: nll_loss
     optimizer:
       name: SGD
       args:
-        lr: 0.02
+        lr: 0.05
         momentum: 0.9
     device: cuda
     poisoning_per_batch: 10
     poison_label_swap: 2
-    stealth_rate: 0
+    stealth_rate: 0.2
     trigger:
       channels: 1
       trigger_num: 4

@@ -14,12 +14,12 @@ FL:
   # true or false
   with_DP: true
   with_attack: true
-  with_defense: false
-  with_recover: true
+  with_defense: true
+  with_recover: false
   # if true, choose one
   dp: Fed_rdp
   attack: DBA
-  defense: Ours
+  defense: DpDefense
   recover: Ours
 
 # local trainer arguments

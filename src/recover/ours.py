@@ -53,6 +53,7 @@ class Ours(FedEraser):
         self.beta = recover_config['beta']
         self.gamma = recover_config['gamma']
         self.zeta = recover_config['zeta']
+        self.recalculate_noise = recover_config['recalculate_noise']
         self.train_losses = train_losses
         self.window_size = 0
         self.list_select_rounds = []
@@ -88,6 +89,7 @@ class Ours(FedEraser):
                 if i < self.rounds - 1:
                     start_round = i + 1
                     start_loss = self.train_losses[i + 1]
+                    start_budget = self.remaining_budgets[i + 1]
         logger.info(f'Ours select rounds: {self.list_select_rounds}')
         logger.info(f'Ours select clients: {self.list_select_clients}')
 
@@ -96,28 +98,34 @@ class Ours(FedEraser):
         self.list_select_rounds = self.list_select_rounds[index:]
         self.list_select_clients = self.list_select_clients[index:]
 
-        # Recalculate noise
-        sel_clients_sequence = list(chain.from_iterable(self.list_select_clients[1:]))
-        sel_counter = Counter(sel_clients_sequence)
-        for mal_id in self.malicious_clients:
-            del sel_counter[mal_id]
-        for client_id, rounds in sel_counter.items():
-            client = self.clients_pool[client_id]
-            noise = get_noise_multiplier_with_fed_rdp_recover(
-                target_epsilon=client.acct.budget,
-                recover_rounds=rounds,
-                recover_steps=self.local_epochs,
-                sample_rate=self.dp_config['sample_rate'],
-                delta=self.dp_config['delta'],
-                delta_g=self.dp_config['delta_g'],
-                eta=self.dp_config['eta'],
-                noise_config=self.dp_config['noise_config'],
-                history_privacy_costs=client.acct.privacy_costs,
-                history_deltas=client.acct.deltas
-            )
-            client.prepare_recover(noise)
-
         self.time_cost += time.time() - start_time
+
+        if self.recalculate_noise:
+            # Recalculate noise
+            sel_clients_sequence = list(chain.from_iterable(self.list_select_clients[1:]))
+            sel_counter = Counter(sel_clients_sequence)
+            for mal_id in self.malicious_clients:
+                if mal_id in sel_counter:
+                    del sel_counter[mal_id]
+            logger.debug(f"Selected Clients Counter: {sel_counter}")
+            noise_new = []
+            for client_id, rounds in sel_counter.items():
+                client = self.clients_pool[client_id]
+                noise = get_noise_multiplier_with_fed_rdp_recover(
+                    target_epsilon=client.acct.budget,
+                    recover_rounds=rounds,
+                    recover_steps=self.local_epochs,
+                    sample_rate=self.dp_config['sample_rate'],
+                    delta=self.dp_config['delta'],
+                    delta_g=self.dp_config['delta_g'],
+                    eta=self.dp_config['eta'],
+                    noise_config=self.dp_config['new_noise_config'],
+                    history_privacy_costs=client.acct.privacy_costs,
+                    history_deltas=client.acct.deltas
+                )
+                client.prepare_recover(noise, self.dp_config['new_noise_config'])
+                noise_new.append(noise)
+            logger.debug(f"New Initial Noise noise_multiplier: {noise_new}")
 
         sel_old_GM = []
         sel_old_CM = []
@@ -269,7 +277,7 @@ class Ours(FedEraser):
                     local_losses.append(local_loss)
                     remaining_budgets.append(client.remaining_budget)
                 # calibration and aggregation
-                self.global_model = self.calibration_training(self.old_global_models[rd],
+                self.global_model = self.calibration_training(old_global_models_state_dict[rd],
                                                               remaining_clients_models,
                                                               copy.deepcopy(self.global_model.state_dict()),
                                                               local_models)

@@ -183,7 +183,7 @@ class Crab(FedEraser):
                     local_models.append(local_model)
                     local_losses.append(local_loss)
                 # calibration and aggregation
-                self.global_model = self.calibration_training(self.old_global_models[rd],
+                self.global_model = self.calibration_training(old_global_models_state_dict[rd],
                                                               remaining_clients_models,
                                                               copy.deepcopy(self.global_model.state_dict()),
                                                               local_models)

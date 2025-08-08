@@ -8,3 +8,4 @@ Recover:
     beta: 0.2
     gamma: 0.5
     zeta: 0.5
+    recalculate_noise: true

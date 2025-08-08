@@ -12,7 +12,9 @@ Fed_rdp:
 
 #      type: log
 #      decay_rate: 0.5
-
+  new_noise_config:
+      type: log
+      decay_rate: 0.1
   max_grad_norm: 3.0
   max_physical_batch_size: 128
   budgets_setting:

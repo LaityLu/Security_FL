@@ -124,7 +124,7 @@ class DBA(Client):
                     privacy_cost = self.acct.get_epsilon(delta=0.001)
                     tempt = self.remaining_budget
                     self.remaining_budget = self.acct.budget - privacy_cost
-                    self.privacy_cost_this_round = tempt - self.remaining_budget
+                    self.privacy_cost_this_round = max(tempt - self.remaining_budget, 0)
         else:
             for epoch in range(self.local_epochs):
                 # store the loss for each batch
@@ -159,7 +159,7 @@ class DBA(Client):
                 privacy_cost = self.acct.get_epsilon(delta=0.001)
                 tempt = self.remaining_budget
                 self.remaining_budget = self.acct.budget - privacy_cost
-                self.privacy_cost_this_round = tempt - self.remaining_budget
+                self.privacy_cost_this_round = max(tempt - self.remaining_budget, 0)
 
         # return the updated model state dict and the average loss
         return self.model, sum(epoch_loss) / len(epoch_loss)

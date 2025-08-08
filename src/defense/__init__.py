@@ -3,3 +3,4 @@ from .krum import Krum
 from .foolsgold import FoolsGold
 from .flame import Flame
 from .ours import Ours
+from .dpdefense import DpDefense
