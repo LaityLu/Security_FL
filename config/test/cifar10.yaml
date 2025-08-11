@@ -4,7 +4,7 @@ seed: 41
 FL:
   name: FedAvg
   rounds: 50
-  recover_rounds: 25
+  recover_rounds: 30
   recover_steps: 1
   num_clients: 10
   client_rate: 1.0
@@ -13,13 +13,13 @@ FL:
   sampler: UniformSampler
   # true or false
   with_DP: true
-  with_attack: false
+  with_attack: true
   with_defense: false
   with_recover: false
   # if true, choose one
   dp: Fed_rdp
   attack: DBA
-  defense: Ours
+  defense: DpDefense
   recover: FedRecover
 
 # local trainer arguments

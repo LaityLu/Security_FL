@@ -131,6 +131,12 @@ def compute_privacy_cost_all_step(rounds,
             eps, delta = compute_privacy_cost_one_step(sigma, sample_rate, delta)
             privacy_costs.append(eps)
             deltas.append(delta)
+    elif noise_config['type'] == 'inverse':
+        for i in range(int(rounds * steps + recover_rounds * recover_steps)):
+            sigma = initial_sigma / (1 + i) ** noise_config['decay_rate']
+            eps, delta = compute_privacy_cost_one_step(sigma, sample_rate, delta)
+            privacy_costs.append(eps)
+            deltas.append(delta)
     else:
         raise ValueError("The noise type should be chosen from 'constant','step','log','double_log'")
     return privacy_costs, deltas
@@ -157,6 +163,8 @@ def get_noise_multiplier_with_fed_rdp(
     eps_high = float("inf")
 
     sigma_low, sigma_high = 0, 2.5
+    if rounds * steps + recover_rounds * recover_steps >= 100:
+        sigma_high = 10
 
     while eps_high > target_epsilon:
         sigma_high = 2 * sigma_high

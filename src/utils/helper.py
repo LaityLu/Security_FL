@@ -228,4 +228,6 @@ def get_noise_multiplier(initial_noise_multiplier: float, t: int, noise_config: 
     elif noise_config['type'] == 'double_log':
         noise_multiplier = initial_noise_multiplier / (1 + noise_config['decay_rate'] * np.log(t + 1) *
                                                        np.log(np.log(t + 2)))
+    elif noise_config['type'] == 'inverse':
+        noise_multiplier = initial_noise_multiplier / (1 + t) ** noise_config['decay_rate']
     return noise_multiplier

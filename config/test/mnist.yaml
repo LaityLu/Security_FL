@@ -3,8 +3,8 @@ seed: 41
 # Federated arguments
 FL:
   name: FedAvg
-  rounds: 10
-  recover_rounds: 6
+  rounds: 30
+  recover_rounds: 20
   recover_steps: 1
   num_clients: 10
   client_rate: 1.0
@@ -15,7 +15,7 @@ FL:
   with_DP: true
   with_attack: true
   with_defense: true
-  with_recover: false
+  with_recover: true
   # if true, choose one
   dp: Fed_rdp
   attack: DBA

@@ -188,7 +188,7 @@ class Crab(FedEraser):
                                                               copy.deepcopy(self.global_model.state_dict()),
                                                               local_models)
                 # compute the average loss in a round
-                round_loss = sum(local_losses) / len(local_losses)
+                round_loss = sum(local_losses) / max(len(local_losses), 1)
             logger.info('Training average loss: {:.3f}'.format(round_loss))
             round_losses.append(round_loss)
 

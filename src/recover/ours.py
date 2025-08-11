@@ -112,7 +112,7 @@ class Ours(FedEraser):
             for client_id, rounds in sel_counter.items():
                 client = self.clients_pool[client_id]
                 noise = get_noise_multiplier_with_fed_rdp_recover(
-                    target_epsilon=client.acct.budget,
+                    target_epsilon=client.remaining_budget,
                     recover_rounds=rounds,
                     recover_steps=self.local_epochs,
                     sample_rate=self.dp_config['sample_rate'],
@@ -120,8 +120,8 @@ class Ours(FedEraser):
                     delta_g=self.dp_config['delta_g'],
                     eta=self.dp_config['eta'],
                     noise_config=self.dp_config['new_noise_config'],
-                    history_privacy_costs=client.acct.privacy_costs,
-                    history_deltas=client.acct.deltas
+                    # history_privacy_costs=client.acct.privacy_costs,
+                    # history_deltas=client.acct.deltas
                 )
                 client.prepare_recover(noise, self.dp_config['new_noise_config'])
                 noise_new.append(noise)
@@ -164,7 +164,7 @@ class Ours(FedEraser):
         # Normalization
         kl_list = np.array(kl_list)
         kl_list /= kl_list.sum()
-        privacy_costs = np.array(privacy_costs)
+        privacy_costs = np.array(privacy_costs, dtype=np.float64)
         privacy_costs /= privacy_costs.sum()
         # compute the scores
         scores = (1 - self.gamma) * kl_list + self.gamma * privacy_costs
@@ -180,7 +180,7 @@ class Ours(FedEraser):
 
         idxes = [[index for index, c_id in enumerate(self.select_info[rd])
                   if c_id == bgn_c_id] for bgn_c_id in self.aggr_clients[rd]]
-        privacy_budgets_ = [privacy_budgets[i] for i in idxes]
+        privacy_budgets_ = [privacy_budgets[i[0]] for i in idxes]
         CM_list = [CM_list[i[0]] for i in idxes]
         CM_list = model_state_dict_to_traj(CM_list)
 
@@ -202,7 +202,7 @@ class Ours(FedEraser):
         # Normalization
         similarity = np.array(similarity)
         similarity /= similarity.sum()
-        privacy_budgets_ = np.array(privacy_budgets_)
+        privacy_budgets_ = np.array(privacy_budgets_, dtype=np.float64)
         privacy_budgets_ /= privacy_budgets_.sum()
         # compute the scores
         scores = (1 - self.zeta) * similarity + self.zeta * privacy_budgets_
@@ -210,7 +210,7 @@ class Ours(FedEraser):
         # choose
         k = int(len(CM_list) * self.X_clients)
 
-        sel_client = np.argsort(scores)
+        sel_client = np.argsort(scores)[::-1]
         sel_client = sel_client[:k].tolist()
 
         sel_client_id = [self.aggr_clients[rd][idx] for idx in sel_client]
@@ -282,7 +282,7 @@ class Ours(FedEraser):
                                                               copy.deepcopy(self.global_model.state_dict()),
                                                               local_models)
                 # compute the average loss in a round
-                round_loss = sum(local_losses) / len(local_losses)
+                round_loss = sum(local_losses) / max(len(local_losses), 1)
 
             logger.info(f"remaining_budget: {remaining_budgets}")
             logger.info('Training average loss: {:.3f}'.format(round_loss))

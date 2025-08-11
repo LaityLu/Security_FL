@@ -1,7 +1,7 @@
 Attack:
   name: DBA
   random_attack: true
-  adversary_list: [1, 2, 3, 4]
+  adversary_list: [0, 2, 4, 6]
   num_adv_each_round: 4   # it's useless when random attack
   attack_round: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
                  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -29,11 +29,11 @@ Attack:
         lr: 0.05
         momentum: 0.9
     device: cuda
-    poisoning_per_batch: 10
+    poisoning_per_batch: 32
     poison_label_swap: 2
-    stealth_rate: 0.2
+    stealth_rate: 0
     trigger:
-      channels: 1
+      channels: 3
       trigger_num: 4
       # '=='
       0_poison_pattern: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [0, 5]]
