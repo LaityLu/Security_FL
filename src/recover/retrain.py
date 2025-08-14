@@ -7,7 +7,7 @@ from opacus.accountants.utils import get_noise_multiplier_with_fed_rdp_recover
 from src.aggregator import average_weights
 from src.recover.recoverBase import RecoverBase
 from src.utils import setup_logger
-from src.utils.helper import evaluate_model
+from src.utils.helper import evaluate_model, evaluate_dba
 
 logger = setup_logger()
 
@@ -24,6 +24,7 @@ class Retrain(RecoverBase):
                  recover_config,
                  loss_function,
                  dp_config,
+                 attack_config,
                  *args,
                  **kwargs):
         super().__init__(
@@ -34,38 +35,15 @@ class Retrain(RecoverBase):
             old_client_models,
             select_info,
             malicious_clients,
-            loss_function)
+            loss_function,
+            attack_config)
         self.rounds = recover_config['rounds']
         self.local_epochs = recover_config['local_epochs']
         self.dp_config = dp_config
 
     def recover(self):
-        # # Recalculate noise
-        # sel_clients_sequence = list(chain.from_iterable(self.select_info))
-        # sel_counter = Counter(sel_clients_sequence)
-        # for mal_id in self.malicious_clients:
-        #     if mal_id in sel_counter:
-        #         del sel_counter[mal_id]
-        # logger.debug(f"Selected Clients Counter: {sel_counter}")
-        # noise_new = []
-        # for client_id, rounds in sel_counter.items():
-        #     client = self.clients_pool[client_id]
-        #     noise = get_noise_multiplier_with_fed_rdp_recover(
-        #         target_epsilon=client.acct.budget,
-        #         recover_rounds=rounds,
-        #         recover_steps=self.local_epochs,
-        #         sample_rate=self.dp_config['sample_rate'],
-        #         delta=self.dp_config['delta'],
-        #         delta_g=self.dp_config['delta_g'],
-        #         eta=self.dp_config['eta'],
-        #         noise_config=self.dp_config['noise_config'],
-        #         history_privacy_costs=client.acct.privacy_costs,
-        #         history_deltas=client.acct.deltas
-        #     )
-        #     client.prepare_recover(noise)
-        #     noise_new.append(noise)
-        # logger.debug(f"New Initial Noise noise_multiplier: {noise_new}")
         MA = []
+        BA = []
         round_losses = []
         # get the initial global model
         self.global_model.load_state_dict(self.old_global_models[0])
@@ -112,9 +90,13 @@ class Retrain(RecoverBase):
             )
             logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
             MA.append(round(test_accuracy.item(), 2))
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            BA.append(round(attack_accuracy.item(), 2))
 
         logger.info("----- The recover process end -----")
         logger.info(f"Total time cost: {self.time_cost}s")
         logger.debug(f'Main Accuracy:{MA}')
+        logger.debug(f'Backdoor Accuracy:{BA}')
 
         return self.global_model

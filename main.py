@@ -8,7 +8,7 @@ from src.utils.helper import set_random_seed
 
 # get the config file path
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='config/test/cifar10.yaml', help='the path of config file')
+parser.add_argument('--config', type=str, default='config/test/fmnist.yaml', help='the path of config file')
 args = parser.parse_args()
 
 # load the config file
@@ -16,7 +16,7 @@ config = parse_yaml(args.config)
 log_file_path = os.path.join('./logs', config['Dataset']['name'])
 if not os.path.exists(log_file_path):
     os.makedirs(log_file_path)
-logger = setup_logger(log_file_path + f'/test.log')
+logger = setup_logger(log_file_path + f'/{config["Recover"]["name"]}.log')
 
 # set random seed
 set_random_seed(config['seed'])

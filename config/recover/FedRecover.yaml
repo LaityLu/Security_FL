@@ -1,8 +1,8 @@
 Recover:
   name: FedRecover
   args:
-    rounds: 10
-    warm_up_rounds: 1
-    final_tuning_rounds: 1
-    correction_period: 2
-    buffer_size: 2
+    rounds: 40
+    warm_up_rounds: 10
+    final_tuning_rounds: 10
+    correction_period: 5
+    buffer_size: 5

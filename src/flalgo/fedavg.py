@@ -70,6 +70,7 @@ class FedAvg:
         if self.privacy_engine is not None:
             # get the privacy budget of all client's data
             total_budgets, budgets_per_client = self.generate_budgets()
+            logger.info(f'Total budgets for clients: {budgets_per_client}')
             self.remaining_budgets.append(sum(budgets_per_client))
 
             # get the initial_noise_multiplier
@@ -252,7 +253,8 @@ class FedAvg:
                 remaining_budgets=self.remaining_budgets,
                 remaining_budgets_per_client=self.remaining_budgets_per_client,
                 aggr_clients=self.aggr_clients,
-                dp_config=self.config['Fed_rdp']
+                dp_config=self.config['Fed_rdp'],
+                attack_config=self.config['Attack']
             )
             self.global_model = recover_server.recover()
 

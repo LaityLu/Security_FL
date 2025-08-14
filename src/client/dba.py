@@ -1,4 +1,5 @@
 import copy
+import random
 from typing import List, Tuple
 
 import torch
@@ -76,8 +77,10 @@ class DBA(Client):
 
     def local_train(self) -> Tuple[torch.nn.Module, float]:
         # logger.info('DBA Client {} training'.format(self.id))
-        adversarial_index = self.adversary_list.index(self.id) % 4
-
+        if len(self.adversary_list) < self.trigger_args["trigger_num"]:
+            adversarial_index = random.choice(list(range(len(self.trigger_args["trigger_num"]))))
+        else:
+            adversarial_index = self.adversary_list.index(self.id) % 4
         # copy the global model in the last round
         global_model = dict()
         for key, value in self.model.state_dict().items():

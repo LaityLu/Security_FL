@@ -138,7 +138,7 @@ def compute_privacy_cost_all_step(rounds,
             privacy_costs.append(eps)
             deltas.append(delta)
     else:
-        raise ValueError("The noise type should be chosen from 'constant','step','log','double_log'")
+        raise ValueError("The noise type should be chosen from 'constant','step','log','double_log','inverse'.")
     return privacy_costs, deltas
 
 

@@ -27,6 +27,7 @@ class Crab(FedEraser):
                  recover_config,
                  loss_function,
                  train_losses,
+                 attack_config,
                  *args,
                  **kwargs):
         super().__init__(
@@ -39,7 +40,8 @@ class Crab(FedEraser):
             select_info,
             malicious_clients,
             recover_config,
-            loss_function)
+            loss_function,
+            attack_config)
         self.P_rounds = recover_config['select_round_ratio']
         self.X_clients = recover_config['select_client_ratio']
         self.alpha = recover_config['alpha']
@@ -148,6 +150,7 @@ class Crab(FedEraser):
 
     def adaptive_recover(self, old_global_models_state_dict, old_client_models_state_dict):
         MA = []
+        BA = []
         round_losses = []
         # get the initial global model
         self.global_model.load_state_dict(old_global_models_state_dict[0])
@@ -203,9 +206,13 @@ class Crab(FedEraser):
             )
             logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
             MA.append(round(test_accuracy.item(), 2))
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            BA.append(round(attack_accuracy.item(), 2))
 
         logger.info("----- The recover process end -----")
         logger.info(f"Total time cost: {self.time_cost}s")
         logger.debug(f'Main Accuracy:{MA}')
+        logger.debug(f'Backdoor Accuracy:{BA}')
 
         return self.global_model

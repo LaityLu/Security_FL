@@ -4,8 +4,8 @@ seed: 41
 FL:
   name: FedAvg
   rounds: 30
-  recover_rounds: 20
-  recover_steps: 1
+  recover_rounds: 25
+  recover_steps: 2
   num_clients: 10
   client_rate: 1.0
   aggregator: averaged_weights
@@ -20,7 +20,7 @@ FL:
   dp: Fed_rdp
   attack: DBA
   defense: DpDefense
-  recover: Ours
+  recover: FedRecover
 
 # local trainer arguments
 Trainer:

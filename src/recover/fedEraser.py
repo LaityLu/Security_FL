@@ -24,6 +24,7 @@ class FedEraser(RecoverBase):
                  malicious_clients,
                  recover_config,
                  loss_function,
+                 attack_config,
                  *args,
                  **kwargs):
         super().__init__(
@@ -34,13 +35,15 @@ class FedEraser(RecoverBase):
             old_client_models,
             select_info,
             malicious_clients,
-            loss_function)
+            loss_function,
+            attack_config)
         self.rounds = old_rounds
         self.round_interval = recover_config.get('round_interval', 1)
         self.local_epochs = recover_config['local_epochs']
 
     def recover(self):
         MA = []
+        BA = []
         round_losses = []
         # get the initial global model
         self.global_model.load_state_dict(self.old_global_models[0])
@@ -95,10 +98,14 @@ class FedEraser(RecoverBase):
             )
             logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
             MA.append(round(test_accuracy.item(), 2))
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            BA.append(round(attack_accuracy.item(), 2))
 
         logger.info("----- The recover process end -----")
         logger.info(f"Total time cost: {self.time_cost}s")
         logger.debug(f'Main Accuracy:{MA}')
+        logger.debug(f'Backdoor Accuracy:{BA}')
 
         return self.global_model
 

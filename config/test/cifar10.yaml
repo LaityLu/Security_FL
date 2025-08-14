@@ -3,8 +3,8 @@ seed: 41
 # Federated arguments
 FL:
   name: FedAvg
-  rounds: 50
-  recover_rounds: 30
+  rounds: 150
+  recover_rounds: 100
   recover_steps: 1
   num_clients: 10
   client_rate: 1.0
@@ -13,25 +13,25 @@ FL:
   sampler: UniformSampler
   # true or false
   with_DP: true
-  with_attack: true
+  with_attack: false
   with_defense: false
   with_recover: false
   # if true, choose one
   dp: Fed_rdp
   attack: DBA
   defense: DpDefense
-  recover: FedRecover
+  recover: Ours
 
 # local trainer arguments
 Trainer:
   local_epochs: 2
-  batch_size: 128
+  batch_size: 64
   loss_function: nll_loss
   optimizer:
     name: SGD
     args:
-      lr: 0.05
-      momentum: 0.9
+      lr: 0.1
+      momentum: 0.8
   device: cuda
 
 Selector:

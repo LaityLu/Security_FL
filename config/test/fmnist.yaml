@@ -3,8 +3,8 @@ seed: 41
 # Federated arguments
 FL:
   name: FedAvg
-  rounds: 30
-  recover_rounds: 25
+  rounds: 40
+  recover_rounds: 20
   recover_steps: 1
   num_clients: 10
   client_rate: 1.0
@@ -20,7 +20,7 @@ FL:
   dp: Fed_rdp
   attack: DBA
   defense: DpDefense
-  recover: Ours
+  recover: Crab
 
 # local trainer arguments
 Trainer:

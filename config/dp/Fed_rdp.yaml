@@ -10,27 +10,21 @@ Fed_rdp:
 #      beta: 0.8
 #      rounds: 60
 
-#      type: log
-#      decay_rate: 0.5
-
       type: inverse
       decay_rate: 0.5
   new_noise_config:
-#      type: log
-#      decay_rate: 0.05
-
       type: inverse
       decay_rate: 0.05
-  max_grad_norm: 20.0
+  max_grad_norm: 3.0
   max_physical_batch_size: 128
   budgets_setting:
-    min_epsilon: 3.0
+    min_epsilon: 1.0
     max_epsilon: 10.0
     name: ThreeLevels
-    args: [[0.3,0.4,0.3], [3.0, 5.0, 10.0]]
+    args: [[0.3,0.4,0.3], [5.0, 8.0, 10.0]]
 
 #    name: BoundedPareto
-#    args: [3, 5]
+#    args: [1, 1]
 
 #    name: BoundedMixGauss
-#    args: [[0.2,0.3,0.5], [[5, 0.5], [7, 0.5], [10, 0.5]]]
+#    args: [[0.3, 0.4, 0.3], [[2.0, 1.0], [3.0, 1.0], [4.0, 1.0]]]

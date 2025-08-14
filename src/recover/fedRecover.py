@@ -72,6 +72,7 @@ class FedRecover(RecoverBase):
                  malicious_clients,
                  recover_config,
                  loss_function,
+                 attack_config,
                  *args,
                  **kwargs):
         super().__init__(
@@ -82,7 +83,8 @@ class FedRecover(RecoverBase):
             old_client_models,
             select_info,
             malicious_clients,
-            loss_function)
+            loss_function,
+            attack_config)
         self.rounds = recover_config['rounds']
         self.T_w = recover_config['warm_up_rounds']
         self.T_f = recover_config['final_tuning_rounds']
@@ -94,6 +96,7 @@ class FedRecover(RecoverBase):
         self.g_diff_buffer = dict()
         self.round_losses = []
         self.MA = []
+        self.BA = []
 
     def recover(self):
 
@@ -107,14 +110,15 @@ class FedRecover(RecoverBase):
         logger.info("----- The recover process end -----")
         logger.info(f"Total time cost: {self.time_cost}s")
         logger.debug(f'Main Accuracy:{self.MA}')
+        logger.debug(f'Backdoor Accuracy:{self.BA}')
 
         return self.global_model
 
     def warm_up(self):
-        start_time = time.time()
         # get the initial global model
         self.global_model.load_state_dict(self.old_global_models[0])
         for rd in range(self.T_w):
+            start_time = time.time()
             # select remaining clients
             remaining_clients_id, remaining_clients_models = self.remove_malicious_clients(
                 self.select_info[rd],
@@ -176,12 +180,15 @@ class FedRecover(RecoverBase):
             )
             logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
             self.MA.append(round(test_accuracy.item(), 2))
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            self.BA.append(round(attack_accuracy.item(), 2))
 
     def mid_stage(self):
-        start_time = time.time()
         correction_round = [i for i in range(self.T_w - 1, self.rounds - self.T_f, self.T_c)]
         correction_round.pop(0)
         for rd in range(self.T_w, self.rounds - self.T_f):
+            start_time = time.time()
             # select remaining clients
             remaining_clients_id, remaining_clients_models, = self.remove_malicious_clients(
                 self.select_info[rd],
@@ -273,12 +280,15 @@ class FedRecover(RecoverBase):
             )
             logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
             self.MA.append(round(test_accuracy.item(), 2))
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            self.BA.append(round(attack_accuracy.item(), 2))
 
     def final_tuning(self):
-        start_time = time.time()
         # get the initial global model
         self.global_model.load_state_dict(self.old_global_models[0])
         for rd in range(self.rounds - self.T_f, self.rounds):
+            start_time = time.time()
             # select remaining clients
             remaining_clients_id, remaining_clients_models = self.remove_malicious_clients(
                 self.select_info[rd],
@@ -316,4 +326,7 @@ class FedRecover(RecoverBase):
             )
             logger.info("Testing accuracy: {:.2f}%, loss: {:.3f}".format(test_accuracy, test_loss))
             self.MA.append(round(test_accuracy.item(), 2))
+            attack_accuracy = self.eval_attack()
+            logger.info("Attack accuracy: {:.2f}%".format(attack_accuracy))
+            self.BA.append(round(attack_accuracy.item(), 2))
 
